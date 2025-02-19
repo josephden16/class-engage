@@ -1,0 +1,11 @@
+{
+  "trailingComma": "all",
+  "overrides": [
+    {
+      "files": "**/*.hbs",
+      "options": {
+        "parser": "angular"
+      }
+    }
+  ]
+}

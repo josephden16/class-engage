@@ -1,0 +1,40 @@
+# Node.js
+# Build a general Node.js project with npm.
+# Add steps that analyze code, save build artifacts, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/javascript
+
+trigger:
+  branches:
+    include:
+      - production/*
+
+pool:
+  name: Clisha-Review-Live
+
+steps:
+  - task: CopyFiles@2
+    inputs:
+      SourceFolder: "$(System.DefaultWorkingDirectory)"
+      Contents: "**"
+      TargetFolder: "$(WORKDIR)"
+      CleanTargetFolder: true
+    displayName: "Copy source files"
+
+  - task: CopyFiles@2
+    inputs:
+      SourceFolder: "$(SOURCE)"
+      Contents: "$(ENVFILE)"
+      TargetFolder: "$(WORKDIR)"
+
+  - script: |
+      pnpm install
+      npx prisma generate
+      npx prisma migrate deploy
+      npx prisma db seed
+      npm run build
+      pm2 restart all
+      systemctl restart nginx
+    workingDirectory: "$(WORKDIR)"
+    displayName: "Restart server"
+    env:
+      HOME: $(HOME)

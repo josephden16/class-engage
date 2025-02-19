@@ -1,0 +1,33 @@
+services:
+  clisha-review-db:
+    image: postgres:15
+    ports:
+      - 5434:5432
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1234
+      POSTGRES_DB: clisha_review_dev
+    networks:
+      - clisha-review
+    volumes:
+      - postgres:/var/lib/postgresql/data
+
+  clisha-review-redis:
+    image: redis:latest
+    ports:
+      - 6379:6379
+    networks:
+      - clisha-review
+    volumes:
+      - redis:/data
+    command: [ "redis-server", "--appendonly", "yes" ]
+
+networks:
+  clisha-review:
+    name: clisha-review
+
+volumes:
+  postgres:
+    name: clisha-review-postgres-db
+  redis:
+    name: clisha-review-redis-data
