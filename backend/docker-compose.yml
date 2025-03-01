@@ -1,33 +1,33 @@
 services:
-  clisha-review-db:
+  fyp-db:
     image: postgres:15
     ports:
-      - 5434:5432
+      - 5436:5432
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: 1234
-      POSTGRES_DB: clisha_review_dev
+      POSTGRES_DB: final_year_project_db
     networks:
-      - clisha-review
+      - fyp
     volumes:
       - postgres:/var/lib/postgresql/data
 
-  clisha-review-redis:
+  fyp-redis:
     image: redis:latest
     ports:
-      - 6379:6379
+      - 6377:6379
     networks:
-      - clisha-review
+      - fyp
     volumes:
       - redis:/data
     command: [ "redis-server", "--appendonly", "yes" ]
 
 networks:
-  clisha-review:
-    name: clisha-review
+  fyp:
+    name: fyp
 
 volumes:
   postgres:
-    name: clisha-review-postgres-db
+    name: fyp-postgres-db
   redis:
-    name: clisha-review-redis-data
+    name: fyp-redis-data

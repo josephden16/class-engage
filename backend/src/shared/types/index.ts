@@ -1,8 +1,8 @@
-import { UserRoles } from '@prisma/client';
+import { Role } from "@prisma/client";
 
 export type GetUserType = {
   uid: string;
-  roles: UserRoles[];
+  roles: Role[];
 };
 
 export type AuthenticatedUser = {

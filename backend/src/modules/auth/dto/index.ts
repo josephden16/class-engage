@@ -1,4 +1,3 @@
-import { TimeFormat } from "@prisma/client";
 import { z } from "zod";
 
 export const registerUserSchema = z
@@ -10,16 +9,8 @@ export const registerUserSchema = z
     password: z.string().min(6).max(32),
     firstName: z.string(),
     lastName: z.string(),
-    profile: z.object({
-      gender: z.enum(["Male", "Female"]),
-      companyName: z.string(),
-      language: z.string(),
-      location: z.string().optional(),
-      websiteUrl: z.string().optional(),
-      timeZone: z.string().optional(),
-      timeFormat: z.nativeEnum(TimeFormat).optional(),
-      googlePlaceId: z.string().optional(),
-    }),
+    department: z.string(),
+    faculty: z.string(),
   })
   .required();
 export type RegisterUserDto = z.infer<typeof registerUserSchema>;

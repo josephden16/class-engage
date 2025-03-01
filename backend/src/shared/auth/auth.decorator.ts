@@ -6,11 +6,11 @@ import {
   UseGuards,
 } from "@nestjs/common";
 
-import { UserRoles } from "@prisma/client";
+import { Role } from "@prisma/client";
 import { AuthGuard } from "./auth.guard";
 import { AuthenticatedUser } from "../types";
 
-export const AllowAuthenticated = (...roles: UserRoles[]) =>
+export const AllowAuthenticated = (...roles: Role[]) =>
   applyDecorators(SetMetadata("roles", roles), UseGuards(AuthGuard));
 
 export const GetUser = createParamDecorator(

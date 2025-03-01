@@ -1,0 +1,324 @@
+"use client";
+
+import type React from "react";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Plus,
+  Minus,
+  Save,
+  PlusCircle,
+  Trash2,
+  GripVertical,
+} from "lucide-react";
+import { APP_ROUTES } from "@/lib/routes";
+import { useCreateSession } from "@/hooks/sessions";
+import { useCourses } from "@/hooks/courses";
+import { EditableMathField } from "react-mathquill";
+
+type Question = {
+  id: string;
+  text: string;
+  type: "MCQ" | "TRUE_FALSE" | "OPEN_ENDED" | "FORMULA";
+  options: { id: string; text: string }[];
+  timeLimit: number;
+};
+
+export default function CreateSessionPage() {
+  const router = useRouter();
+  const { data: courses = [], isLoading: isCoursesLoading } = useCourses();
+  const [sessionDetails, setSessionDetails] = useState({
+    title: "",
+    courseId: "",
+    date: "",
+  });
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [questionType, setQuestionType] = useState("MCQ");
+  const [options, setOptions] = useState([""]);
+  const [questionText, setQuestionText] = useState("");
+  const [mathFormula, setMathFormula] = useState("");
+  const [timeLimit, setTimeLimit] = useState("60");
+
+  const handleAddQuestion = () => {
+    if (questionText.trim()) {
+      const newQ: Question = {
+        id: Date.now().toString(),
+        text: questionText,
+        type: questionType as "MCQ" | "TRUE_FALSE" | "OPEN_ENDED" | "FORMULA",
+        options:
+          questionType === "MCQ"
+            ? options.map((option, index) => ({
+                id: index.toString(),
+                text: option,
+              }))
+            : [],
+        timeLimit: parseInt(timeLimit) || 60, // Added
+      };
+      setQuestions([...questions, newQ]);
+      setQuestionText("");
+      setOptions([""]);
+      setTimeLimit("60"); // Reset
+      setMathFormula("");
+    }
+  };
+
+  const handleRemoveQuestion = (id: string) => {
+    setQuestions(questions.filter((q) => q.id !== id));
+  };
+
+  const handleSessionDetailsChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    setSessionDetails({ ...sessionDetails, [e.target.name]: e.target.value });
+  };
+
+  const addOption = () => {
+    if (options.length < 4) {
+      setOptions([...options, ""]);
+    }
+  };
+
+  const removeOption = (index: number) =>
+    setOptions(options.filter((_, i) => i !== index));
+
+  const updateOption = (index: number, value: string) => {
+    const newOptions = [...options];
+    newOptions[index] = value;
+    setOptions(newOptions);
+  };
+
+  const createSessionMutation = useCreateSession();
+
+  const handleCreateSession = () => {
+    createSessionMutation.mutate(
+      {
+        title: sessionDetails.title,
+        courseId: sessionDetails.courseId,
+        questions: questions.map((q) => ({
+          text: q.text,
+          type: q.type,
+          options: q.options.map((o) => o.text),
+          timeLimit: q.timeLimit,
+        })),
+      },
+      {
+        onSuccess: (data: any) => {
+          router.push(`${APP_ROUTES.LECTURER_LIVE_SESSION}/${data.id}`);
+        },
+        onError: (error: any) => {
+          console.error("Failed to create session:", error);
+        },
+      }
+    );
+  };
+
+  return (
+    <div className="container p-4 space-y-6 lg:max-w-3xl">
+      <h1 className="text-2xl font-bold">Create New Session</h1>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Session Details</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="title">Session Title</Label>
+              <Input
+                id="title"
+                name="title"
+                value={sessionDetails.title}
+                onChange={handleSessionDetailsChange}
+                placeholder="Enter session title"
+              />
+            </div>
+            <div className="grid grid-cols-1 items-center gap-4">
+              <Label htmlFor="course">Course</Label>
+              <Select
+                name="course"
+                value={sessionDetails.courseId}
+                onValueChange={(value) => {
+                  setSessionDetails({ ...sessionDetails, courseId: value });
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select course" />
+                </SelectTrigger>
+                <SelectContent>
+                  {courses.map((course: any) => (
+                    <SelectItem key={course.id} value={course.id}>
+                      {course.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Create Questions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex gap-4">
+              <div className="w-1/2">
+                <label className="block text-sm font-medium mb-2">
+                  Question Type
+                </label>
+                <Select value={questionType} onValueChange={setQuestionType}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select question type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MCQ">Multiple Choice</SelectItem>
+                    <SelectItem value="TRUE_FALSE">True/False</SelectItem>
+                    <SelectItem value="OPEN_ENDED">Open Ended</SelectItem>
+                    <SelectItem value="formula">Formula-Based</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div>
+              <Label className="block text-sm font-medium mb-2">
+                Question Text
+              </Label>
+              <Textarea
+                name="question-text"
+                placeholder="Enter your question here..."
+                value={questionText}
+                onChange={(e) => setQuestionText(e.target.value)}
+                className="min-h-[100px]"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="timeLimit">Time Limit (seconds)</Label>
+              <Input
+                id="timeLimit"
+                type="number"
+                value={timeLimit}
+                onChange={(e) => setTimeLimit(e.target.value)}
+                placeholder="Enter time limit in seconds"
+              />
+            </div>
+
+            {questionType === "formula" && (
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Math Formula
+                </label>
+                <EditableMathField
+                  latex={mathFormula}
+                  onChange={(mathField) => setMathFormula(mathField.latex())}
+                  className="border p-2 rounded-md"
+                />
+              </div>
+            )}
+
+            {questionType === "MCQ" && (
+              <div className="space-y-2">
+                <label className="block text-sm font-medium mb-2">
+                  Answer Options
+                </label>
+                {options.map((option, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <GripVertical className="h-4 w-4 text-gray-400" />
+                    <Input
+                      placeholder={`Option ${index + 1}`}
+                      value={option}
+                      onChange={(e) => updateOption(index, e.target.value)}
+                    />
+                    {options.length > 2 && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeOption(index)}
+                      >
+                        <Trash2 className="h-4 w-4 text-gray-500" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={addOption}
+                  className="mt-2"
+                >
+                  <PlusCircle className="h-4 w-4 mr-2" />
+                  Add Option
+                </Button>
+              </div>
+            )}
+
+            <Button onClick={handleAddQuestion} className="w-full">
+              <Plus className="h-4 w-4 mr-1" /> Add Question
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Question List */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Question List</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ScrollArea className="h-[300px] pr-4">
+            {questions.map((question, index) => (
+              <div key={question.id} className="mb-4 p-4 border rounded-md">
+                <div className="flex justify-between items-start">
+                  <h3 className="font-semibold">Question {index + 1}</h3>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleRemoveQuestion(question.id)}
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                </div>
+                <p className="mt-2">{question.text}</p>
+                {question.type !== "OPEN_ENDED" && (
+                  <ul className="mt-2 list-disc list-inside">
+                    {question.options.map((option) => (
+                      <li key={option.id}>{option.text}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+          </ScrollArea>
+        </CardContent>
+      </Card>
+
+      {/* Create Session Button */}
+      <Button
+        onClick={handleCreateSession}
+        disabled={createSessionMutation.isPending}
+        className="w-full"
+      >
+        <Save className="h-4 w-4 mr-1" />{" "}
+        {createSessionMutation.isPending
+          ? "Creating Session..."
+          : "Create Session"}
+      </Button>
+    </div>
+  );
+}

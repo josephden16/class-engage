@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,98 +7,137 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserRoles {
-  SuperAdmin
-  Company
-}
-
-enum TimeFormat {
-  twelve
-  twentyFour
-}
-
-enum ReviewStatus {
-  PENDING
-  APPROVED
-  REJECTED
-  UPDATED
-}
-
 model User {
-  id              String    @id @default(cuid())
-  email           String    @unique
-  role            UserRoles @default(Company)
-  password        String    @db.VarChar(255)
-  firstName       String    @map("first_name")
-  lastName        String    @map("last_name")
-  emailVerified   Boolean   @default(false) @map("email_verified")
-  verificationOtp String?   @map("verification_otp")
-  otpExpiration   DateTime? @map("otp_expiration")
-  isActive        Boolean   @default(true) @map("is_active")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
-
-  userProfile UserProfile?
-  qrCodes     QRCode[]
-  reviews     Review[]
-
-  @@map("users")
+  id          String        @id @default(uuid())
+  firstName   String
+  lastName    String
+  email       String        @unique
+  password    String
+  department  String?
+  faculty     String?
+  role        Role          @default(LECTURER)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  courses     Course[]
+  LiveSession LiveSession[]
 }
 
-model UserProfile {
-  id            String     @id @default(cuid())
-  gender        String
-  companyName   String     @map("company_name")
-  location      String?
-  websiteUrl    String?    @map("website_url")
-  timezone      String     @default("Europe/Berlin")
-  timeFormat    TimeFormat @default(twelve) @map("time_format")
-  language      String     @default("Deutsch")
-  logo          String?
-  googlePlaceId String?    @map("google_place_id")
-  createdAt     DateTime   @default(now()) @map("created_at")
-  updatedAt     DateTime   @updatedAt @map("updated_at")
-
-  userId String @unique @map("user_id")
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("user_profiles")
+enum Role {
+  LECTURER
+  STUDENT
 }
 
-model QRCode {
-  id         String    @id @default(cuid())
-  user       User      @relation(fields: [userId], references: [id])
-  userId     String    @map("user_id")
-  code       String    @unique // The actual QR code data
-  label      String? // A label for the QR code
-  scans      Int       @default(0)
-  isActive   Boolean   @default(true) @map("is_active")
-  createdAt  DateTime  @default(now()) @map("created_at")
-  updatedAt  DateTime  @updatedAt @map("updated_at")
-  lastScanAt DateTime? @map("last_scan_at")
-
-  reviews Review[]
-
-  @@map("qr_codes")
+model Course {
+  id          String        @id @default(uuid())
+  title       String
+  courseCode  String
+  description String?
+  lecturerId  String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  lecturer    User          @relation(fields: [lecturerId], references: [id])
+  sessions    LiveSession[]
 }
 
-model Review {
-  id             String       @id @default(cuid())
-  userId         String       @map("user_id")
-  rating         Int // 1-5 stars
-  comment        String       @default("")
-  customerName   String       @map("customer_name")
-  customerEmail  String       @map("customer_email")
-  status         ReviewStatus @default(PENDING)
-  qrCodeId       String       @map("qr_code_id")
-  googleReviewId String?      @map("google_review_id") // ID of the review if posted to Google
-  responseText   String?      @map("response_text") // Business response to review
-  responseAt     DateTime?    @map("response_at") // When the business responded
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
+model LiveSession {
+  id               String            @id @default(uuid())
+  title            String
+  lecturerId       String
+  lecturer         User              @relation(fields: [lecturerId], references: [id])
+  courseId         String
+  course           Course            @relation(fields: [courseId], references: [id])
+  invitationCode   String            @unique
+  startTime        DateTime          @default(now())
+  endTime          DateTime?
+  isActive         Boolean           @default(true)
+  students         StudentSession[]
+  questions        Question[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  studentQuestions StudentQuestion[]
+  pollResponses    PollResponse[]
+}
 
-  user   User   @relation(fields: [userId], references: [id])
-  qrCode QRCode @relation(fields: [qrCodeId], references: [id])
+model StudentSession {
+  id               String            @id @default(uuid())
+  sessionId        String
+  session          LiveSession       @relation(fields: [sessionId], references: [id])
+  name             String
+  matricNo         String
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  responses        Response[]
+  studentQuestions StudentQuestion[]
+  upvotes          Upvote[]
+  pollResponses    PollResponse[]
+}
 
-  @@map("reviews")
+model Question {
+  id         String       @id @default(uuid())
+  sessionId  String
+  session    LiveSession  @relation(fields: [sessionId], references: [id])
+  text       String
+  type       QuestionType
+  options    String[]
+  isLaunched Boolean      @default(false)
+  launchedAt DateTime?
+  timeLimit  Int          @default(60)
+  endedAt    DateTime?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  responses  Response[]
+}
+
+model StudentQuestion {
+  id               String          @id @default(uuid())
+  sessionId        String
+  session          LiveSession     @relation(fields: [sessionId], references: [id])
+  studentSessionId String? // Added to track who asked
+  studentSession   StudentSession? @relation(fields: [studentSessionId], references: [id])
+  text             String
+  upvotes          Int             @default(0)
+  isAnswered       Boolean         @default(false)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  upvotesRelation  Upvote[]
+}
+
+enum QuestionType {
+  MCQ
+  OPEN_ENDED
+  TRUE_FALSE
+  FORMULA
+}
+
+model Response {
+  id          String         @id @default(uuid())
+  questionId  String
+  question    Question       @relation(fields: [questionId], references: [id])
+  studentId   String
+  student     StudentSession @relation(fields: [studentId], references: [id])
+  answer      String
+  submittedAt DateTime       @default(now())
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model Upvote {
+  id                String          @id @default(uuid())
+  studentSessionId  String
+  studentQuestionId String
+  createdAt         DateTime        @default(now())
+  studentSession    StudentSession  @relation(fields: [studentSessionId], references: [id])
+  studentQuestion   StudentQuestion @relation(fields: [studentQuestionId], references: [id])
+
+  @@unique([studentSessionId, studentQuestionId])
+}
+
+model PollResponse {
+  id               String         @id @default(uuid())
+  sessionId        String
+  session          LiveSession    @relation(fields: [sessionId], references: [id])
+  studentSessionId String
+  studentSession   StudentSession @relation(fields: [studentSessionId], references: [id])
+  answer           String
+  createdAt        DateTime       @default(now())
 }

@@ -1,6 +1,6 @@
 import { ForbiddenException, Logger } from "@nestjs/common";
 import { GetUserType } from "../types";
-import { UserRoles } from "@prisma/client";
+import { Role } from "@prisma/client";
 
 /**
  * Checks row-level permissions based on user roles or UID
@@ -12,9 +12,9 @@ import { UserRoles } from "@prisma/client";
 export const checkRowLevelPermission = (
   user: GetUserType,
   requestedId?: string | string[],
-  roles: UserRoles[] = ["Company", "SuperAdmin"],
+  roles: Role[] = ["LECTURER", "STUDENT"],
 ): boolean => {
-  const userRoles = user.roles;
+  const Role = user.roles;
 
   // If there's no requested ID, permission is denied by default
   if (!requestedId) {
@@ -25,7 +25,7 @@ export const checkRowLevelPermission = (
   }
 
   // Check if the user has any of the roles that bypass UID checks
-  if (userRoles.some((role) => roles.includes(role))) {
+  if (Role.some((role) => roles.includes(role))) {
     return true; // Allow access based on role
   }
 

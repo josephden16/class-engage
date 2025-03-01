@@ -8,7 +8,7 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { Reflector } from "@nestjs/core";
 import { JwtService } from "@nestjs/jwt";
-import { UserRoles } from "@prisma/client";
+import { Role } from "@prisma/client";
 import { PrismaService } from "../../modules/prisma/prisma.service";
 
 @Injectable()
@@ -92,7 +92,7 @@ export class AuthGuard implements CanActivate {
    * @returns {boolean} - Whether the user is authorized based on their role.
    */
   private authorizeUser(req: any, context: ExecutionContext): boolean {
-    const requiredRoles = this.getMetadata<UserRoles[]>("roles", context); // Retrieve required roles from metadata
+    const requiredRoles = this.getMetadata<Role[]>("roles", context); // Retrieve required roles from metadata
     if (!requiredRoles || requiredRoles.length === 0) {
       return true; // If no roles are specified, allow access by default
     }

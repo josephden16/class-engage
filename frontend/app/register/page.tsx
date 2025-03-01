@@ -1,6 +1,7 @@
 "use client";
 
-import React, { ChangeEvent, FormEvent, useState } from "react";
+import React, { useState } from "react";
+import { useForm } from "react-hook-form";
 import {
   Card,
   CardContent,
@@ -12,64 +13,30 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { UserCircle, Mail, Lock, School } from "lucide-react";
+import Link from "next/link";
+import { signUpUser } from "@/lib/api";
+import { APP_ROUTES } from "@/lib/routes";
+import { useRouter } from "next/navigation";
 
 const Register = () => {
-  const [userType, setUserType] = useState("student");
-  const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-    registrationNumber: "",
-    department: "",
-    faculty: "",
-    agreedToTerms: false,
-  });
-  const [error, setError] = useState("");
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors, isSubmitting },
+  } = useForm();
 
-  const handleInputChange = (
-    e: ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    const { name, value, type } = e.target;
-    setFormData({
-      ...formData,
-      [name]:
-        type === "checkbox" ? (e.target as HTMLInputElement).checked : value,
-    });
-  };
+  const router = useRouter();
+  const [signupError, setSignupError] = useState("");
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setError("");
-
-    if (
-      !formData.firstName ||
-      !formData.lastName ||
-      !formData.email ||
-      !formData.password ||
-      !formData.confirmPassword ||
-      !formData.department ||
-      !formData.faculty
-    ) {
-      setError("Please fill in all required fields");
-      return;
+  const onSubmit = async (data: any) => {
+    try {
+      setSignupError("");
+      await signUpUser(data);
+      router.push(APP_ROUTES.DASHBOARD);
+    } catch (error: any) {
+      setSignupError(error.response.data.message);
     }
-
-    if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
-
-    if (!formData.agreedToTerms) {
-      setError("You must agree to the terms and conditions");
-      return;
-    }
-
-    console.log("Form submitted:", { ...formData, userType });
   };
 
   return (
@@ -91,44 +58,37 @@ const Register = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <Tabs value={userType} onValueChange={setUserType}>
-              <TabsList className="grid w-full grid-cols-2 mb-4">
-                <TabsTrigger
-                  value="student"
-                  className="flex items-center gap-2"
-                >
-                  <UserCircle className="h-4 w-4" /> Student
-                </TabsTrigger>
-                <TabsTrigger
-                  value="lecturer"
-                  className="flex items-center gap-2"
-                >
-                  <School className="h-4 w-4" /> Lecturer
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="firstName">First Name</Label>
                 <Input
                   id="firstName"
-                  name="firstName"
-                  placeholder="John"
-                  value={formData.firstName}
-                  onChange={handleInputChange}
+                  placeholder="First Name"
+                  {...register("firstName", {
+                    required: "First name is required",
+                  })}
                 />
+                {errors.firstName && (
+                  <p className="text-red-500 text-sm">
+                    {errors.firstName?.message as string}
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="lastName">Last Name</Label>
                 <Input
                   id="lastName"
-                  name="lastName"
-                  placeholder="Doe"
-                  value={formData.lastName}
-                  onChange={handleInputChange}
+                  placeholder="Last Name"
+                  {...register("lastName", {
+                    required: "Last name is required",
+                  })}
                 />
+                {errors.lastName && (
+                  <p className="text-red-500 text-sm">
+                    {errors.lastName?.message as string}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -136,86 +96,127 @@ const Register = () => {
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
-                name="email"
                 type="email"
-                placeholder="john.doe@ui.edu.ng"
-                value={formData.email}
-                onChange={handleInputChange}
+                placeholder="Email"
+                {...register("email", {
+                  required: "Email is required",
+                  pattern: {
+                    value: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
+                    message: "Invalid email format",
+                  },
+                })}
               />
+              {errors.email && (
+                <p className="text-red-500 text-sm">
+                  {errors.email?.message as string}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
-                name="password"
                 type="password"
-                value={formData.password}
-                onChange={handleInputChange}
+                placeholder="Password"
+                {...register("password", {
+                  required: "Password is required",
+                  minLength: {
+                    value: 6,
+                    message: "Password must be at least 6 characters",
+                  },
+                })}
               />
+              {errors.password && (
+                <p className="text-red-500 text-sm">
+                  {errors.password?.message as string}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>
               <Input
                 id="confirmPassword"
-                name="confirmPassword"
                 type="password"
-                value={formData.confirmPassword}
-                onChange={handleInputChange}
+                placeholder="Confirm Password"
+                {...register("confirmPassword", {
+                  required: "Confirm password is required",
+                  validate: (value) =>
+                    value === watch("password") || "Passwords do not match",
+                })}
               />
+              {errors.confirmPassword && (
+                <p className="text-red-500 text-sm">
+                  {errors.confirmPassword?.message as string}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="department">Department</Label>
               <Input
                 id="department"
-                name="department"
-                placeholder="Computer Science"
-                value={formData.department}
-                onChange={handleInputChange}
+                placeholder="Department"
+                {...register("department", {
+                  required: "Department is required",
+                })}
               />
+              {errors.department && (
+                <p className="text-red-500 text-sm">
+                  {errors.department?.message as string}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="faculty">Faculty</Label>
               <Input
                 id="faculty"
-                name="faculty"
-                placeholder="Science"
-                value={formData.faculty}
-                onChange={handleInputChange}
+                placeholder="Faculty"
+                {...register("faculty", { required: "Faculty is required" })}
               />
+              {errors.faculty && (
+                <p className="text-red-500 text-sm">
+                  {errors.faculty?.message as string}
+                </p>
+              )}
             </div>
 
             <div className="flex items-center space-x-2">
               <input
-                type="checkbox"
                 id="terms"
-                name="agreedToTerms"
-                checked={formData.agreedToTerms}
-                onChange={handleInputChange}
+                type="checkbox"
+                {...register("agreedToTerms", {
+                  required: "You must agree to the terms",
+                })}
               />
               <Label htmlFor="terms">I agree to Terms and Conditions</Label>
             </div>
-
-            {error && (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
+            {errors.agreedToTerms && (
+              <p className="text-red-500 text-sm">
+                {errors.agreedToTerms?.message as string}
+              </p>
+            )}
+            {signupError && (
+              <p className="text-red-500 text-sm">{signupError}</p>
             )}
 
-            <Button type="submit" className="w-full">
+            <Button
+              disabled={isSubmitting}
+              type="submit"
+              className="w-full my-3"
+            >
               Create Account
             </Button>
           </form>
         </CardContent>
         <CardFooter className="flex flex-col space-y-4">
           <div className="text-sm text-gray-500 text-center">
-            Already have an account?
-            <Button variant="link" className="pl-1">
-              Sign In
-            </Button>
+            Already have an account?{" "}
+            <Link href="/login" className="text-black hover:underline">
+              login
+            </Link>
           </div>
         </CardFooter>
       </Card>

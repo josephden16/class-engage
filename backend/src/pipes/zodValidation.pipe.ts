@@ -1,5 +1,5 @@
-import { PipeTransform, Injectable, BadRequestException } from '@nestjs/common';
-import { ZodSchema, ZodError } from 'zod';
+import { PipeTransform, Injectable, BadRequestException } from "@nestjs/common";
+import { ZodSchema, ZodError } from "zod";
 
 @Injectable()
 export class ZodValidationPipe implements PipeTransform {
@@ -12,7 +12,7 @@ export class ZodValidationPipe implements PipeTransform {
       if (error instanceof ZodError) {
         const formattedErrors = this.formatZodErrors(error);
         throw new BadRequestException({
-          message: 'Invalid or incomplete details sent',
+          message: "Invalid or incomplete details sent",
           errors: formattedErrors,
         });
       }
@@ -23,7 +23,7 @@ export class ZodValidationPipe implements PipeTransform {
   private formatZodErrors(error: any) {
     // return error.errors.map((err) => err.message).join(', ');
     return error.errors.map((err) => ({
-      field: err.path.join('.'),
+      field: err.path.join("."),
       message: err.message,
     }));
   }

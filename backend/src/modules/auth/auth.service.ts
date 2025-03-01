@@ -8,9 +8,8 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
-import { User, UserRoles } from "@prisma/client";
+import { Role } from "@prisma/client";
 import { GlobalApiResponseDto } from "src/shared/dto/api-response.dto";
-import { EmailService } from "../email/email.service";
 import { ConfigService } from "@nestjs/config";
 import { JsonWebTokenError, JwtService, TokenExpiredError } from "@nestjs/jwt";
 import { hashPassword } from "src/shared/helpers/helpers";
@@ -29,11 +28,9 @@ export class AuthService {
   private readonly jwtRefreshExpiryTime = this.configService.get<string>(
     "JWT_EXPIRY_REFRESH_TIME",
   );
-  private readonly frontendUrl = this.configService.get<string>("FRONTEND_URL");
 
   constructor(
     private prisma: PrismaService,
-    private emailService: EmailService,
     private configService: ConfigService,
     private jwtService: JwtService,
   ) {}
@@ -59,7 +56,7 @@ export class AuthService {
    */
   async generateAuthToken(
     id: string,
-    role: UserRoles,
+    role: Role,
   ): Promise<AuthTokenDto | undefined> {
     const payload = { id, role };
 
@@ -92,27 +89,10 @@ export class AuthService {
       throw new BadRequestException("This account does not exist.");
     }
 
-    if (user.role !== UserRoles.Company) {
-      throw new BadRequestException("Unathorized access");
-    }
-
     const isValidPassword = await bcrypt.compare(dto.password, user.password);
 
     if (!isValidPassword) {
       throw new BadRequestException("Wrong Credentials, try again.");
-    }
-
-    if (!user.emailVerified) {
-      await this.sendVerificationEmail(user);
-
-      return {
-        data: {
-          emailVerified: false,
-          token: "",
-        },
-        status: 200,
-        message: "Verification Email Sent Successfully",
-      };
     }
 
     const tokens = await this.generateAuthToken(user.id, user.role);
@@ -122,8 +102,8 @@ export class AuthService {
     }
 
     return {
+      user: removeProperties(user, ["password"]),
       tokens,
-      emailVerified: user.emailVerified,
     };
   }
 
@@ -138,26 +118,15 @@ export class AuthService {
       throw new BadRequestException("User already exists");
     }
 
-    const profileInput = args.profile;
-
     const user = await this.prisma.user.create({
       data: {
-        firstName: args.firstName,
-        lastName: args.lastName,
-        email: args.email,
-        password: args.password,
+        ...args,
       },
     });
 
-    const profile = await this.prisma.userProfile.create({
-      data: { ...profileInput, userId: user.id },
-    });
-
-    await this.sendVerificationEmail(user);
-
     const userData = removeProperties(user, ["password"]);
 
-    return { ...userData, profile };
+    return { ...userData };
   }
 
   async refreshToken(token: string): Promise<GlobalApiResponseDto> {
@@ -185,6 +154,7 @@ export class AuthService {
         },
         { expiresIn: this.jwtExpiryTime, secret: this.accessTokenSecret },
       );
+
       const response: GlobalApiResponseDto = {
         message: "New access token sent",
         statusCode: HttpStatus.OK,
@@ -212,9 +182,6 @@ export class AuthService {
 
       const user = await this.prisma.user.findUnique({
         where: { id: payload.id },
-        include: {
-          userProfile: true,
-        },
       });
 
       if (!user) {
@@ -280,75 +247,6 @@ export class AuthService {
         error.message || "Server error, please try again",
       );
     }
-  }
-
-  async verifyEmail({ token }: { token: string }) {
-    try {
-      const payload = await this.jwtService.verifyAsync(token, {
-        secret: process.env.JWT_SECRET,
-      });
-
-      const userData = await this.prisma.user.findUnique({
-        where: { id: payload.id },
-      });
-
-      if (!userData) {
-        throw new UnauthorizedException("Invalid token");
-      }
-
-      if (userData.emailVerified) {
-        throw new BadRequestException("User already verified");
-      }
-
-      await this.prisma.user.update({
-        where: { id: userData.id },
-        data: { emailVerified: true },
-      });
-    } catch (error) {
-      if (error instanceof TokenExpiredError) {
-        throw new UnauthorizedException("Token expired");
-      }
-      throw new UnauthorizedException("Invalid token");
-    }
-  }
-
-  async resendVerificationEmail(email) {
-    try {
-      const user = await this.prisma.user.findUnique({
-        where: { email },
-      });
-
-      if (!user) {
-        throw Error("This account does not exist");
-      }
-
-      if (user.emailVerified) {
-        throw new Error("User already validated");
-      }
-
-      await this.sendVerificationEmail(user);
-    } catch (error) {
-      throw new BadRequestException(error.message || "OTP verification failed");
-    }
-  }
-
-  private async sendVerificationEmail(user: User) {
-    const token = await this.generateVerificationToken(
-      {
-        id: user.id,
-        email: user.email,
-        role: UserRoles.Company,
-      },
-      "30m",
-    );
-
-    const context = {
-      name: user.firstName,
-      token,
-      url: this.frontendUrl || "https://clishareview.com",
-    };
-
-    await this.emailService.sendVerificationEmail(user.email, context);
   }
 
   async generateVerificationToken(payload: any, expiresIn: string) {

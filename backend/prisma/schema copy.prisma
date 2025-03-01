@@ -1,0 +1,114 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String        @id @default(uuid())
+  firstName   String
+  lastName    String
+  email       String        @unique
+  password    String
+  department  String?
+  faculty     String?
+  role        Role          @default(LECTURER)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  courses     Course[]
+  LiveSession LiveSession[]
+}
+
+enum Role {
+  LECTURER
+  STUDENT
+}
+
+model Course {
+  id          String        @id @default(uuid())
+  title       String
+  courseCode  String
+  description String?
+  lecturerId  String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  lecturer    User          @relation(fields: [lecturerId], references: [id])
+  sessions    LiveSession[]
+}
+
+model LiveSession {
+  id              String            @id @default(uuid())
+  title           String
+  lecturerId      String
+  lecturer        User              @relation(fields: [lecturerId], references: [id])
+  courseId        String
+  course          Course            @relation(fields: [courseId], references: [id])
+  invitationCode  String            @unique
+  startTime       DateTime          @default(now())
+  endTime         DateTime?
+  students        StudentSession[]
+  questions       Question[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  StudentQuestion StudentQuestion[]
+}
+
+model StudentSession {
+  id        String      @id @default(uuid())
+  sessionId String
+  session   LiveSession @relation(fields: [sessionId], references: [id])
+  name      String
+  matricNo  String
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  responses Response[]
+
+  @@unique([sessionId, matricNo])
+}
+
+model Question {
+  id        String       @id @default(uuid())
+  sessionId String
+  session   LiveSession  @relation(fields: [sessionId], references: [id])
+  text      String
+  type      QuestionType
+  options   String[] // array for MCQ options
+  timeLimit Int          @default(60)
+  upvotes   Int? // Upvotes for open ended student questions
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  responses Response[]
+}
+
+model StudentQuestion {
+  id         String      @id @default(uuid())
+  sessionId  String
+  session    LiveSession @relation(fields: [sessionId], references: [id])
+  text       String
+  upvotes    Int         @default(0)
+  answeredBy String[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+}
+
+enum QuestionType {
+  MCQ
+  OPEN_ENDED
+  TRUE_FALSE
+  FORMULA
+}
+
+model Response {
+  id          String         @id @default(uuid())
+  questionId  String
+  question    Question       @relation(fields: [questionId], references: [id])
+  studentId   String
+  student     StudentSession @relation(fields: [studentId], references: [id])
+  answer      String
+  submittedAt DateTime       @default(now())
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}

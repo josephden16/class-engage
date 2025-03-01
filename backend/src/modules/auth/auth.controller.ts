@@ -4,7 +4,6 @@ import {
   Controller,
   Get,
   Post,
-  Query,
   Req,
   Res,
   UnauthorizedException,
@@ -38,12 +37,7 @@ export class AuthController {
     return await this.authService.login(loginDto);
   }
 
-  @Get("/verify-email")
-  async verifyEmail(@Query("token") token: string) {
-    return await this.authService.verifyEmail({ token });
-  }
-
-  @Get("/refresh-token")
+  @Get("/refresh")
   async refresh(@Req() req: Request) {
     const refreshToken = req.cookies.refreshToken;
     if (!refreshToken) {
