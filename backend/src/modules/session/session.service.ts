@@ -327,12 +327,22 @@ export class SessionsService {
     dto: StudentActionDto,
   ) {
     if (dto.action === "kick") {
-      const student = await this.prisma.studentSession.delete({
-        where: { id: studentId, sessionId },
+      // Start a transaction to ensure atomicity
+      return this.prisma.$transaction(async (prisma) => {
+        // Delete all responses associated with this studentSessionId
+        await prisma.response.deleteMany({
+          where: { studentId: studentId, question: { sessionId } },
+        });
+
+        // Now delete the StudentSession
+        const student = await prisma.studentSession.delete({
+          where: { id: studentId, sessionId },
+        });
+
+        this.eventEmitter.emitStudentUpdate(sessionId, student);
+        this.eventEmitter.emitStudentKicked(sessionId, studentId);
+        return student;
       });
-      this.eventEmitter.emitStudentUpdate(sessionId, student);
-      this.eventEmitter.emitStudentKicked(sessionId, studentId);
-      return student;
     }
     throw new Error("Unsupported action");
   }

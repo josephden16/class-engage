@@ -85,7 +85,6 @@ export default function PostSessionAnalytics() {
       y += 10;
       doc.text(`${q.text} (Upvotes: ${q.upvotes})`, 10, y);
       y += 10;
-      doc.text(`Answer: ${q.answer}`, 10, y);
     });
 
     doc.save(`session_${params.id}_analytics.pdf`);
@@ -207,9 +206,6 @@ export default function PostSessionAnalytics() {
                     <p className="font-semibold">{question.text}</p>
                     <p className="text-sm text-muted-foreground">
                       Upvotes: {question.upvotes}
-                    </p>
-                    <p className="mt-2">
-                      <strong>Answer:</strong> {question.answer}
                     </p>
                   </li>
                 ))}
