@@ -2,9 +2,16 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { io, Socket } from "socket.io-client";
+import { io, type Socket } from "socket.io-client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardFooter,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -13,7 +20,19 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { BarChart } from "@/components/ui/chart";
-import { Send, ThumbsUp, CheckCircle2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import {
+  Send,
+  ThumbsUp,
+  CheckCircle2,
+  Clock,
+  Users,
+  MessageSquare,
+  BarChart3,
+  User,
+  Timer,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import { APP_ROUTES } from "@/lib/routes";
 import axios from "@/lib/axios";
@@ -83,6 +102,7 @@ export default function StudentSessionScreen() {
   const [tempStudentSessionId, setTempStudentSessionId] = useState<
     string | null
   >(null);
+  const [activeTab, setActiveTab] = useState("question");
 
   // Fetch initial data and set up WebSocket
   useEffect(() => {
@@ -168,6 +188,7 @@ export default function StudentSessionScreen() {
         answered: false,
       });
       setStudentAnswer("");
+      setActiveTab("question"); // Switch to question tab when new question is launched
     });
     newSocket.on(
       "questionResults",
@@ -318,7 +339,10 @@ export default function StudentSessionScreen() {
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        Loading...
+        <div className="flex flex-col items-center gap-2">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+          <p className="text-muted-foreground">Loading session...</p>
+        </div>
       </div>
     );
   }
@@ -345,15 +369,26 @@ export default function StudentSessionScreen() {
             value={studentAnswer}
             onValueChange={setStudentAnswer}
             disabled={currentQuestion.answered}
-            className="space-y-2"
+            className="space-y-3"
           >
             {currentQuestion.options.map((option, idx) => (
-              <div key={idx} className="flex items-center space-x-2">
+              <div
+                key={idx}
+                className="flex items-center space-x-3 p-3 rounded-md border bg-card hover:bg-accent/5 transition-colors"
+              >
                 <RadioGroupItem
                   value={String.fromCharCode(65 + idx)}
                   id={`opt-${idx}`}
                 />
-                <Label htmlFor={`opt-${idx}`}>{option}</Label>
+                <Label
+                  htmlFor={`opt-${idx}`}
+                  className="flex-grow cursor-pointer"
+                >
+                  {option}
+                </Label>
+                <Badge variant="outline" className="font-mono">
+                  {String.fromCharCode(65 + idx)}
+                </Badge>
               </div>
             ))}
           </RadioGroup>
@@ -364,15 +399,19 @@ export default function StudentSessionScreen() {
             value={studentAnswer}
             onValueChange={setStudentAnswer}
             disabled={currentQuestion.answered}
-            className="space-y-2"
+            className="space-y-3"
           >
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-3 p-3 rounded-md border bg-card hover:bg-accent/5 transition-colors">
               <RadioGroupItem value="True" id="true" />
-              <Label htmlFor="true">True</Label>
+              <Label htmlFor="true" className="flex-grow cursor-pointer">
+                True
+              </Label>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-3 p-3 rounded-md border bg-card hover:bg-accent/5 transition-colors">
               <RadioGroupItem value="False" id="false" />
-              <Label htmlFor="false">False</Label>
+              <Label htmlFor="false" className="flex-grow cursor-pointer">
+                False
+              </Label>
             </div>
           </RadioGroup>
         );
@@ -383,20 +422,19 @@ export default function StudentSessionScreen() {
             onChange={(e) => setStudentAnswer(e.target.value)}
             placeholder="Type your answer here..."
             disabled={currentQuestion.answered}
-            className="min-h-[100px]"
+            className="min-h-[150px] resize-none"
           />
         );
       case "FORMULA":
         return (
-          <div>
-            <p className="text-sm text-gray-500 mb-2">
-              Formula-based question (display only)
-            </p>
+          <div className="space-y-2">
+            <Badge variant="outline">Formula Question</Badge>
             <Textarea
               value={studentAnswer}
               onChange={(e) => setStudentAnswer(e.target.value)}
               placeholder="Type your formula answer here..."
               disabled={currentQuestion.answered}
+              className="min-h-[150px] resize-none font-mono"
             />
           </div>
         );
@@ -406,171 +444,322 @@ export default function StudentSessionScreen() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50">
+    <div className="flex flex-col min-h-screen bg-background">
       {/* Session Header */}
-      <header className="sticky top-0 z-10 bg-white shadow-md p-4">
-        <div className="container mx-auto flex flex-wrap justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800">
-              {sessionState.title}
-            </h1>
-            <p className="text-sm text-gray-600">{sessionState.course}</p>
-          </div>
-          <div className="flex items-center space-x-4">
-            <div className="text-center">
-              <p className="text-xs text-gray-500">Time</p>
-              <p className="font-semibold">
-                {formatTime(sessionState.elapsedTime)}
-              </p>
+      <header className="sticky top-0 z-10 bg-background border-b">
+        <div className="container mx-auto py-3 px-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-xl font-bold ">{sessionState.title}</h1>
+              <p className="text-sm text-black">{sessionState.course}</p>
             </div>
-            <div className="text-center">
-              <p className="text-xs text-gray-500">Students</p>
-              <p className="font-semibold">{sessionState.studentCount}</p>
+
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1 bg-muted px-3 py-1 rounded-md">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium">
+                  {formatTime(sessionState.elapsedTime)}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1 bg-muted px-3 py-1 rounded-md">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium">{sessionState.studentCount}</span>
+              </div>
             </div>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="flex-grow container mx-auto p-4 space-y-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Current Question */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex justify-between items-center">
-                <span>Current Question</span>
+      <main className="flex-grow container mx-auto p-4">
+        <Tabs
+          defaultValue="question"
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className="space-y-4"
+        >
+          <div className="flex justify-between items-center">
+            <TabsList>
+              <TabsTrigger value="question" className="flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" />
+                <span>Question</span>
                 {currentQuestion && !currentQuestion.answered && (
-                  <span className="text-lg font-bold text-primary">
-                    Time left: {formatTime(currentQuestion.timeRemaining)}
-                  </span>
+                  <Badge variant="destructive" className="ml-1">
+                    Live
+                  </Badge>
                 )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {currentQuestion ? (
-                <>
-                  <p className="text-lg font-semibold mb-4">
-                    {currentQuestion.text}
-                  </p>
-                  {renderQuestionInput()}
-                  {!currentQuestion.answered &&
-                    currentQuestion.timeRemaining > 0 && (
-                      <Button
-                        onClick={handleSubmitAnswer}
-                        className="mt-4 w-full"
-                      >
-                        Submit Answer
-                      </Button>
-                    )}
-                  {currentQuestion.answered && currentQuestion.results && (
-                    <div className="mt-4">
-                      <h3 className="font-semibold mb-2">Results</h3>
-                      <div className="w-full h-64">
-                        <BarChart data={chartData} />
-                      </div>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <p className="text-lg font-semibold">
-                  Waiting for the lecturer to launch a question...
-                </p>
-              )}
-            </CardContent>
-          </Card>
+              </TabsTrigger>
+              <TabsTrigger value="qa" className="flex items-center gap-2">
+                <MessageSquare className="h-4 w-4" />
+                <span>Q&A</span>
+                {studentQuestions.length > 0 && (
+                  <Badge variant="secondary" className="ml-1">
+                    {studentQuestions.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="stats" className="flex items-center gap-2">
+                <User className="h-4 w-4" />
+                <span>My Progress</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
-          {/* Q&A Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Q&A</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
+          {/* Question Tab */}
+          <TabsContent value="question">
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle>Current Question</CardTitle>
+                    {currentQuestion?.type && (
+                      <CardDescription>
+                        <Badge variant="outline" className="mt-1">
+                          {currentQuestion.type.replace("_", " ")}
+                        </Badge>
+                      </CardDescription>
+                    )}
+                  </div>
+                  {currentQuestion &&
+                    !currentQuestion.answered &&
+                    currentQuestion.timeRemaining > 0 && (
+                      <div className="flex items-center gap-2 text-destructive">
+                        <Timer className="h-5 w-5" />
+                        <span className="font-medium">
+                          {formatTime(currentQuestion.timeRemaining)}
+                        </span>
+                      </div>
+                    )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {currentQuestion ? (
+                  <div className="space-y-6">
+                    <div className="p-4 bg-muted/50 rounded-lg">
+                      <p className="text-lg font-medium">
+                        {currentQuestion.text}
+                      </p>
+                    </div>
+
+                    <div className="space-y-4">{renderQuestionInput()}</div>
+
+                    {currentQuestion.answered && currentQuestion.results && (
+                      <div className="mt-6 pt-6 border-t">
+                        <h3 className="font-semibold mb-4">Class Results</h3>
+                        <div className="w-full h-64">
+                          <BarChart data={chartData} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                      <Timer className="h-8 w-8 text-primary" />
+                    </div>
+                    <p className="text-lg font-medium">
+                      Waiting for the lecturer to launch a question...
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      You'll be notified when a new question is available
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+              {currentQuestion &&
+                !currentQuestion.answered &&
+                currentQuestion.timeRemaining > 0 && (
+                  <CardFooter className="pt-0">
+                    <Button
+                      onClick={handleSubmitAnswer}
+                      className="w-full"
+                      size="lg"
+                      disabled={!studentAnswer}
+                    >
+                      Submit Answer
+                    </Button>
+                  </CardFooter>
+                )}
+            </Card>
+          </TabsContent>
+
+          {/* Q&A Tab */}
+          <TabsContent value="qa">
+            <Card>
+              <CardHeader>
+                <CardTitle>Questions & Answers</CardTitle>
+                <CardDescription>
+                  Ask questions or upvote existing ones to get the lecturer's
+                  attention
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 <div className="flex space-x-2">
                   <Input
                     placeholder="Ask a question..."
                     value={newQuestionText}
                     onChange={(e) => setNewQuestionText(e.target.value)}
                   />
-                  <Button onClick={handleSubmitQuestion}>
-                    <Send className="h-4 w-4" />
+                  <Button
+                    onClick={handleSubmitQuestion}
+                    disabled={!newQuestionText.trim()}
+                  >
+                    <Send className="h-4 w-4 mr-2" />
+                    <span>Ask</span>
                   </Button>
                 </div>
-                <ScrollArea className="h-[300px]">
-                  <div className="space-y-4">
+
+                <ScrollArea className="h-[400px] pr-4">
+                  <div className="space-y-3">
                     {studentQuestions.map((question) => (
                       <div
                         key={question.id}
-                        className="flex items-start space-x-2"
+                        className={`p-4 rounded-md border ${
+                          question.isAnswered
+                            ? "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800"
+                            : "bg-card"
+                        }`}
                       >
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => handleUpvoteQuestion(question.id)}
+                        <p
+                          className={`font-medium mb-2 ${
+                            question.isAnswered
+                              ? "text-green-700 dark:text-green-300"
+                              : ""
+                          }`}
                         >
-                          <ThumbsUp className="h-4 w-4" />
-                        </Button>
-                        <div className="flex-grow">
-                          <p className="font-semibold">{question.text}</p>
-                          <div className="flex items-center space-x-2 text-sm text-gray-500">
-                            <span>{question.upvotes} votes</span>
-                            {question.isAnswered && (
-                              <span className="flex items-center text-green-500">
-                                <CheckCircle2 className="h-4 w-4 mr-1" />{" "}
-                                Answered
-                              </span>
-                            )}
-                          </div>
+                          {question.text}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleUpvoteQuestion(question.id)}
+                            className="gap-1"
+                          >
+                            <ThumbsUp className="h-3.5 w-3.5" />
+                            <span>{question.upvotes}</span>
+                          </Button>
+
+                          {question.isAnswered && (
+                            <Badge
+                              variant="outline"
+                              className="bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800"
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                              <span>Answered</span>
+                            </Badge>
+                          )}
                         </div>
                       </div>
                     ))}
+
+                    {studentQuestions.length === 0 && (
+                      <div className="flex flex-col items-center justify-center py-12 text-center">
+                        <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
+                        <p className="text-lg font-medium">No questions yet</p>
+                        <p className="text-sm text-muted-foreground mt-2">
+                          Be the first to ask a question!
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </ScrollArea>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        {/* Participation Status */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Your Participation</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Avatar>
-                  <AvatarImage src="https://api.dicebear.com/6.x/initials/svg?seed=Student" />
-                  <AvatarFallback>ST</AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="font-semibold">Connected</p>
-                  <p className="text-sm text-gray-500">
-                    Active for {formatTime(sessionState.elapsedTime)}
-                  </p>
+          {/* Stats Tab */}
+          <TabsContent value="stats">
+            <Card>
+              <CardHeader>
+                <CardTitle>Your Participation</CardTitle>
+                <CardDescription>
+                  Track your engagement in this session
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                  <div className="flex items-center gap-4">
+                    <Avatar className="h-16 w-16">
+                      <AvatarImage src="https://api.dicebear.com/6.x/initials/svg?seed=Student" />
+                      <AvatarFallback>ST</AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-semibold text-lg">Active Student</p>
+                      <p className="text-sm text-muted-foreground">
+                        Connected for {formatTime(sessionState.elapsedTime)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-muted p-4 rounded-lg w-full md:w-auto">
+                    <div className="text-center md:text-right">
+                      <p className="text-sm text-muted-foreground">
+                        Questions Answered
+                      </p>
+                      <div className="flex items-center justify-center md:justify-end gap-2">
+                        <span className="text-3xl font-bold text-primary">
+                          {stats.answered}
+                        </span>
+                        <span className="text-lg text-muted-foreground">
+                          / {stats.total}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div>
-                <p className="font-semibold">Questions Answered</p>
-                <p className="text-2xl font-bold text-primary">
-                  {stats.answered}/{stats.total}
-                </p>
-              </div>
-            </div>
-            <Progress
-              value={(stats.answered / (stats.total || 1)) * 100}
-              className="mt-4"
-            />
-          </CardContent>
-        </Card>
+
+                <div className="mt-8 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Completion Rate</span>
+                    <span className="font-medium">
+                      {stats.total > 0
+                        ? Math.round((stats.answered / stats.total) * 100)
+                        : 0}
+                      %
+                    </span>
+                  </div>
+                  <Progress
+                    value={
+                      stats.total > 0 ? (stats.answered / stats.total) * 100 : 0
+                    }
+                    className="h-2"
+                  />
+                </div>
+
+                <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-4 bg-muted/50 rounded-lg">
+                    <p className="font-medium mb-2">Session Activity</p>
+                    <p className="text-sm text-muted-foreground">
+                      You've been active in this session for{" "}
+                      {formatTime(sessionState.elapsedTime)}. Keep participating
+                      to improve your learning experience!
+                    </p>
+                  </div>
+
+                  <div className="p-4 bg-muted/50 rounded-lg">
+                    <p className="font-medium mb-2">Engagement Tips</p>
+                    <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                      <li>Answer questions promptly</li>
+                      <li>Ask questions when you're unsure</li>
+                      <li>Upvote questions that you also have</li>
+                      <li>Review results to understand concepts better</li>
+                    </ul>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </main>
 
       {/* Kicked Dialog */}
       <AlertDialog open={showKickedDialog}>
         <AlertDialogContent>
-          <AlertDialogTitle>You’ve Been Kicked Out</AlertDialogTitle>
+          <AlertDialogTitle>You've Been Removed</AlertDialogTitle>
           <AlertDialogDescription>
-            The lecturer has removed you from the session. You’ll be redirected
+            The lecturer has removed you from the session. You'll be redirected
             to the join session page.
           </AlertDialogDescription>
           <AlertDialogAction
@@ -592,28 +781,38 @@ export default function StudentSessionScreen() {
           <RadioGroup
             value={helpfulnessRating}
             onValueChange={setHelpfulnessRating}
-            className="space-y-2 mt-4"
+            className="space-y-3 mt-6"
           >
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-3 p-3 rounded-md border bg-card hover:bg-accent/5 transition-colors">
               <RadioGroupItem value="Very Helpful" id="very-helpful" />
-              <Label htmlFor="very-helpful">Very Helpful</Label>
+              <Label htmlFor="very-helpful" className="cursor-pointer">
+                Very Helpful
+              </Label>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-3 p-3 rounded-md border bg-card hover:bg-accent/5 transition-colors">
               <RadioGroupItem value="Somewhat Helpful" id="somewhat-helpful" />
-              <Label htmlFor="somewhat-helpful">Somewhat Helpful</Label>
+              <Label htmlFor="somewhat-helpful" className="cursor-pointer">
+                Somewhat Helpful
+              </Label>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-3 p-3 rounded-md border bg-card hover:bg-accent/5 transition-colors">
               <RadioGroupItem value="Neutral" id="neutral" />
-              <Label htmlFor="neutral">Neutral</Label>
+              <Label htmlFor="neutral" className="cursor-pointer">
+                Neutral
+              </Label>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-3 p-3 rounded-md border bg-card hover:bg-accent/5 transition-colors">
               <RadioGroupItem value="Not Helpful" id="not-helpful" />
-              <Label htmlFor="not-helpful">Not Helpful</Label>
+              <Label htmlFor="not-helpful" className="cursor-pointer">
+                Not Helpful
+              </Label>
             </div>
           </RadioGroup>
-          <AlertDialogAction onClick={handleSubmitPoll} className="mt-4">
-            Submit Feedback
-          </AlertDialogAction>
+          <div className="mt-6">
+            <Button onClick={handleSubmitPoll} className="w-full">
+              Submit Feedback
+            </Button>
+          </div>
         </AlertDialogContent>
       </AlertDialog>
     </div>
