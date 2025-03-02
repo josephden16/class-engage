@@ -320,7 +320,7 @@ export default function LiveSessionScreen() {
       window.location.host +
       `/student/join-session?invitationCode=${sessionState.invitationCode}`;
     navigator.clipboard.writeText(fullUrl);
-    toast.success("Session code copied to clipboard");
+    toast.success("Session invitation copied to clipboard");
   };
 
   if (isLoading) {
