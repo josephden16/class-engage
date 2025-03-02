@@ -32,10 +32,18 @@ import {
   BarChart3,
   MessageSquare,
   Copy,
+  Loader2,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import axios from "@/lib/axios";
 import { APP_ROUTES } from "@/lib/routes";
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query";
 
 type Question = {
   results: any;
@@ -73,9 +81,22 @@ type SessionState = {
   isSessionActive: boolean;
 };
 
-export default function LiveSessionScreen() {
+// Create a client
+const queryClient = new QueryClient();
+
+// Wrapper component to provide React Query context
+export default function LiveSessionScreenWrapper() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <LiveSessionScreen />
+    </QueryClientProvider>
+  );
+}
+
+function LiveSessionScreen() {
   const params = useParams();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [sessionState, setSessionState] = useState<SessionState>({
     id: params.id as string,
@@ -92,22 +113,21 @@ export default function LiveSessionScreen() {
   const [studentQuestions, setStudentQuestions] = useState<StudentQuestion[]>(
     []
   );
-  const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("questions");
 
   const currentQuestion = questions[currentQuestionIndex];
 
-  // Initialize session data and WebSocket
-  useEffect(() => {
-    const fetchSessionData = async () => {
+  // Fetch session data with React Query
+  const { isLoading } = useQuery({
+    queryKey: ["sessionData", params.id],
+    queryFn: async () => {
       try {
         const response = await axios.get(`/sessions/${params.id}`);
-
         const data = response.data?.data;
 
         if (!data.isActive) {
           router.replace(APP_ROUTES.DASHBOARD);
-          return;
+          return null;
         }
 
         setSessionState({
@@ -148,16 +168,121 @@ export default function LiveSessionScreen() {
             answeredBy: sq.answeredBy,
           }))
         );
+        return data;
       } catch (error) {
         toast.error("Failed to load session");
         // router.push(APP_ROUTES.DASHBOARD);
-      } finally {
-        setIsLoading(false);
+        throw error;
       }
-    };
+    },
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
 
-    fetchSessionData();
+  // Start session mutation
+  const startSessionMutation = useMutation({
+    mutationFn: async () => {
+      return axios.post(`/sessions/${params.id}/start`);
+    },
+    onSuccess: () => {
+      setSessionState((prev) => ({ ...prev, isSessionActive: true }));
+      toast.success("Session started");
+    },
+    onError: () => {
+      toast.error("Failed to start session");
+    },
+  });
 
+  // End session mutation
+  const endSessionMutation = useMutation({
+    mutationFn: async () => {
+      return axios.post(`/sessions/${params.id}/end`);
+    },
+    onSuccess: () => {
+      toast.success("Session ended");
+      window.location.href = `${APP_ROUTES.LECTURER_POST_SESSION_SUMMARY}/${params.id}`;
+    },
+    onError: () => {
+      toast.error("Failed to end session");
+    },
+  });
+
+  // Launch question mutation
+  const launchQuestionMutation = useMutation({
+    mutationFn: async (questionId: string) => {
+      return axios.post(
+        `/sessions/${params.id}/questions/${questionId}/launch`
+      );
+    },
+    onSuccess: (_, questionId) => {
+      setQuestions((prev) =>
+        prev.map((q) => (q.id === questionId ? { ...q, isLaunched: true } : q))
+      );
+      const question = questions.find((q) => q.id === questionId);
+      if (question && socket) {
+        socket.emit("questionLaunched", { sessionId: params.id, question });
+      }
+      toast.success("Question launched");
+    },
+    onError: () => {
+      toast.error("Failed to launch question");
+    },
+  });
+
+  // Toggle answered mutation
+  const toggleAnsweredMutation = useMutation({
+    mutationFn: async (questionId: string) => {
+      return axios.post(
+        `/sessions/${params.id}/student-questions/${questionId}/toggle-answered`
+      );
+    },
+    onSuccess: (_, questionId) => {
+      setStudentQuestions((prev) =>
+        prev.map((q) =>
+          q.id === questionId ? { ...q, isAnswered: !q.isAnswered } : q
+        )
+      );
+      toast.success("Question updated");
+    },
+    onError: () => {
+      toast.error("Failed to toggle answered status");
+    },
+  });
+
+  // Kick student mutation
+  const kickStudentMutation = useMutation({
+    mutationFn: async (studentId: string) => {
+      return axios.post(`/sessions/${params.id}/students/${studentId}/action`, {
+        action: "kick",
+      });
+    },
+    onSuccess: (_, studentId) => {
+      setStudents((prev) => prev.filter((s) => s.id !== studentId));
+      setSessionState((prev) => ({
+        ...prev,
+        studentCount: prev.studentCount - 1,
+      }));
+      toast.success("Student removed");
+    },
+    onError: () => {
+      toast.error("Failed to kick student");
+    },
+  });
+
+  // Upvote student question mutation
+  const upvoteQuestionMutation = useMutation({
+    mutationFn: async (questionId: string) => {
+      return axios.post(
+        `/sessions/${params.id}/student-questions/${questionId}/upvote`
+      );
+    },
+    onError: () => {
+      toast.error("Failed to upvote question");
+    },
+  });
+
+  // Initialize session data and WebSocket
+  useEffect(() => {
     // WebSocket setup
     const newSocket = io(
       process.env.NEXT_PUBLIC_WS_URL || "http://localhost:5000"
@@ -211,7 +336,7 @@ export default function LiveSessionScreen() {
     return () => {
       newSocket.disconnect();
     };
-  }, [params.id, router, sessionState.studentCount]);
+  }, [params.id, sessionState.studentCount]);
 
   // Session timer and question countdown
   useEffect(() => {
@@ -242,39 +367,17 @@ export default function LiveSessionScreen() {
       .padStart(2, "0")}`;
   };
 
-  const handleStartSession = async () => {
-    try {
-      await axios.post(`/sessions/${params.id}/start`);
-      setSessionState((prev) => ({ ...prev, isSessionActive: true }));
-      toast.success("Session started");
-    } catch (error) {
-      toast.error("Failed to start session");
-    }
+  const handleStartSession = () => {
+    startSessionMutation.mutate();
   };
 
-  const handleEndSession = async () => {
-    try {
-      await axios.post(`/sessions/${params.id}/end`);
-      toast.success("Session ended");
-      window.location.href = `${APP_ROUTES.LECTURER_POST_SESSION_SUMMARY}/${params.id}`;
-    } catch (error) {
-      toast.error("Failed to end session");
-    }
+  const handleEndSession = () => {
+    endSessionMutation.mutate();
   };
 
-  const handleLaunchQuestion = async () => {
-    const question = currentQuestion;
-    try {
-      await axios.post(
-        `/sessions/${params.id}/questions/${question.id}/launch`
-      );
-      setQuestions((prev) =>
-        prev.map((q) => (q.id === question.id ? { ...q, isLaunched: true } : q))
-      );
-      socket?.emit("questionLaunched", { sessionId: params.id, question });
-      toast.success("Question launched");
-    } catch (error) {
-      toast.error("Failed to launch question");
+  const handleLaunchQuestion = () => {
+    if (currentQuestion) {
+      launchQuestionMutation.mutate(currentQuestion.id);
     }
   };
 
@@ -290,42 +393,16 @@ export default function LiveSessionScreen() {
     }
   };
 
-  const handleUpvoteStudentQuestion = async (id: string) => {
-    try {
-      await axios.post(`/sessions/${params.id}/student-questions/${id}/upvote`);
-    } catch (error) {
-      toast.error("Failed to upvote question");
-    }
+  const handleUpvoteStudentQuestion = (id: string) => {
+    upvoteQuestionMutation.mutate(id);
   };
 
-  const handleToggleAnswered = async (id: string) => {
-    try {
-      await axios.post(
-        `/sessions/${params.id}/student-questions/${id}/toggle-answered`
-      );
-      setStudentQuestions((prev) =>
-        prev.map((q) => (q.id === id ? { ...q, answeredBy: !q.isAnswered } : q))
-      );
-      toast.success("Question updated");
-    } catch (error) {
-      toast.error("Failed to toggle answered status");
-    }
+  const handleToggleAnswered = (id: string) => {
+    toggleAnsweredMutation.mutate(id);
   };
 
-  const handleKickStudent = async (studentId: string) => {
-    try {
-      await axios.post(`/sessions/${params.id}/students/${studentId}/action`, {
-        action: "kick",
-      });
-      setStudents((prev) => prev.filter((s) => s.id !== studentId));
-      setSessionState((prev) => ({
-        ...prev,
-        studentCount: prev.studentCount - 1,
-      }));
-      toast.success("Student removed");
-    } catch (error) {
-      toast.error("Failed to kick student");
-    }
+  const handleKickStudent = (studentId: string) => {
+    kickStudentMutation.mutate(studentId);
   };
 
   const handleShareSession = () => {
@@ -440,16 +517,32 @@ export default function LiveSessionScreen() {
                   variant="destructive"
                   size="sm"
                   onClick={handleEndSession}
+                  disabled={endSessionMutation.isPending}
                 >
-                  End Session
+                  {endSessionMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Ending...
+                    </>
+                  ) : (
+                    "End Session"
+                  )}
                 </Button>
               ) : (
                 <Button
                   variant="default"
                   size="sm"
                   onClick={handleStartSession}
+                  disabled={startSessionMutation.isPending}
                 >
-                  Start Session
+                  {startSessionMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Starting...
+                    </>
+                  ) : (
+                    "Start Session"
+                  )}
                 </Button>
               )}
             </div>
@@ -515,13 +608,19 @@ export default function LiveSessionScreen() {
                     onClick={handleLaunchQuestion}
                     disabled={
                       !sessionState.isSessionActive ||
-                      currentQuestion?.isLaunched
+                      currentQuestion?.isLaunched ||
+                      launchQuestionMutation.isPending
                     }
                   >
-                    {currentQuestion?.isLaunched ? (
-                      <span>Question Launched</span>
+                    {launchQuestionMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Launching...
+                      </>
+                    ) : currentQuestion?.isLaunched ? (
+                      "Question Launched"
                     ) : (
-                      <span>Launch Question</span>
+                      "Launch Question"
                     )}
                   </Button>
                 </div>
@@ -744,10 +843,24 @@ export default function LiveSessionScreen() {
                             variant="ghost"
                             size="sm"
                             onClick={() => handleKickStudent(student.id)}
+                            disabled={
+                              kickStudentMutation.isPending &&
+                              kickStudentMutation.variables === student.id
+                            }
                             className="text-destructive hover:text-destructive hover:bg-destructive/10"
                           >
-                            <UserMinus className="h-4 w-4 mr-1" />
-                            <span className="hidden sm:inline">Remove</span>
+                            {kickStudentMutation.isPending &&
+                            kickStudentMutation.variables === student.id ? (
+                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            ) : (
+                              <UserMinus className="h-4 w-4 mr-1" />
+                            )}
+                            <span className="hidden sm:inline">
+                              {kickStudentMutation.isPending &&
+                              kickStudentMutation.variables === student.id
+                                ? "Removing..."
+                                : "Remove"}
+                            </span>
                           </Button>
                         </div>
                       </div>
@@ -801,8 +914,23 @@ export default function LiveSessionScreen() {
                           {question.text}
                         </p>
                         <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm">
-                            <ThumbsUp className="h-3.5 w-3.5 mr-1" />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              handleUpvoteStudentQuestion(question.id)
+                            }
+                            disabled={
+                              upvoteQuestionMutation.isPending &&
+                              upvoteQuestionMutation.variables === question.id
+                            }
+                          >
+                            {upvoteQuestionMutation.isPending &&
+                            upvoteQuestionMutation.variables === question.id ? (
+                              <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                            ) : (
+                              <ThumbsUp className="h-3.5 w-3.5 mr-1" />
+                            )}
                             {question.upvotes}
                           </Button>
                           <Button
@@ -811,8 +939,15 @@ export default function LiveSessionScreen() {
                             }
                             size="sm"
                             onClick={() => handleToggleAnswered(question.id)}
+                            disabled={
+                              toggleAnsweredMutation.isPending &&
+                              toggleAnsweredMutation.variables === question.id
+                            }
                           >
-                            {question.isAnswered ? (
+                            {toggleAnsweredMutation.isPending &&
+                            toggleAnsweredMutation.variables === question.id ? (
+                              <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                            ) : question.isAnswered ? (
                               <>
                                 <Eye className="h-3.5 w-3.5 mr-1" />
                                 <span>Answered</span>

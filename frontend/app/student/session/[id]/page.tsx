@@ -32,6 +32,7 @@ import {
   BarChart3,
   User,
   Timer,
+  Loader2,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { APP_ROUTES } from "@/lib/routes";
@@ -43,6 +44,13 @@ import {
   AlertDialogDescription,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query";
 
 type Question = {
   id: string;
@@ -76,7 +84,19 @@ type Stats = {
   total: number;
 };
 
-export default function StudentSessionScreen() {
+// Create a client
+const queryClient = new QueryClient();
+
+// Wrapper component to provide React Query context
+export default function StudentSessionScreenWrapper() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <StudentSessionScreen />
+    </QueryClientProvider>
+  );
+}
+
+function StudentSessionScreen() {
   const params = useParams();
   const router = useRouter();
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -95,7 +115,6 @@ export default function StudentSessionScreen() {
   const [studentAnswer, setStudentAnswer] = useState<string>("");
   const [stats, setStats] = useState<Stats>({ answered: 0, total: 0 });
   const [newQuestionText, setNewQuestionText] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
   const [showKickedDialog, setShowKickedDialog] = useState(false);
   const [showEndedDialog, setShowEndedDialog] = useState(false);
   const [helpfulnessRating, setHelpfulnessRating] = useState<string>("");
@@ -104,16 +123,21 @@ export default function StudentSessionScreen() {
   >(null);
   const [activeTab, setActiveTab] = useState("question");
 
-  // Fetch initial data and set up WebSocket
-  useEffect(() => {
-    const studentSessionId = sessionStorage.getItem("studentSessionId"); // Set in JoininvitationScreen
-    if (!studentSessionId) {
-      toast.error("Please join the session first.");
-      router.push(APP_ROUTES.STUDENT_JOIN_SESSION);
-      return;
-    }
+  const studentSessionId =
+    typeof window !== "undefined"
+      ? sessionStorage.getItem("studentSessionId")
+      : null;
 
-    const fetchSessionData = async () => {
+  // Fetch session data with React Query
+  const { isLoading: isSessionLoading } = useQuery({
+    queryKey: ["sessionData", params.id],
+    queryFn: async () => {
+      if (!studentSessionId) {
+        toast.error("Please join the session first.");
+        router.push(APP_ROUTES.STUDENT_JOIN_SESSION);
+        return null;
+      }
+
       try {
         const [sessionResponse, statsResponse] = await Promise.all([
           axios.get(`/sessions/${params.id}/student`, {
@@ -129,10 +153,9 @@ export default function StudentSessionScreen() {
 
         if (!sessionData.isActive) {
           setShowEndedDialog(true);
-          const studentSessionId = sessionStorage.getItem("studentSessionId");
           setTempStudentSessionId(studentSessionId);
           sessionStorage.removeItem("studentSessionId");
-          return;
+          return null;
         }
 
         setSessionState({
@@ -159,15 +182,125 @@ export default function StudentSessionScreen() {
           }))
         );
         setStats(statsData);
+        return sessionData;
       } catch (error) {
         toast.error("Failed to load session");
         router.push(APP_ROUTES.STUDENT_JOIN_SESSION);
-      } finally {
-        setIsLoading(false);
+        throw error;
       }
-    };
+    },
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
 
-    fetchSessionData();
+  // Submit answer mutation
+  const submitAnswerMutation = useMutation({
+    mutationFn: async () => {
+      if (!studentAnswer || !currentQuestion || !studentSessionId) return;
+
+      return axios.post(
+        `/sessions/${params.id}/responses`,
+        {
+          questionId: currentQuestion.id,
+          answer: studentAnswer,
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            "X-Student-Session-Id": studentSessionId,
+          },
+        }
+      );
+    },
+    onSuccess: () => {
+      setCurrentQuestion((prev) => (prev ? { ...prev, answered: true } : prev));
+      setStats((prev) => ({ ...prev, answered: prev.answered + 1 }));
+      toast.success("Your answer has been recorded.");
+    },
+    onError: () => {
+      toast.error("Failed to submit answer");
+    },
+  });
+
+  // Submit question mutation
+  const submitQuestionMutation = useMutation({
+    mutationFn: async () => {
+      if (!newQuestionText.trim() || !studentSessionId) return;
+
+      return axios.post(
+        `/sessions/${params.id}/student-questions`,
+        { text: newQuestionText },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            "X-Student-Session-Id": studentSessionId,
+          },
+        }
+      );
+    },
+    onSuccess: () => {
+      setNewQuestionText("");
+      toast.success("Your question has been added.");
+    },
+    onError: () => {
+      toast.error("Failed to submit question");
+    },
+  });
+
+  // Upvote question mutation
+  const upvoteQuestionMutation = useMutation({
+    mutationFn: async (questionId: string) => {
+      if (!studentSessionId) return;
+
+      return axios.post(
+        `/sessions/${params.id}/student-questions/${questionId}/upvote`,
+        {},
+        {
+          headers: { "X-Student-Session-Id": studentSessionId },
+        }
+      );
+    },
+    onError: () => {
+      toast.error("Failed to upvote question");
+    },
+  });
+
+  // Submit poll mutation
+  const submitPollMutation = useMutation({
+    mutationFn: async () => {
+      if (!helpfulnessRating || !tempStudentSessionId) {
+        toast.error("Please select a rating before submitting.");
+        return;
+      }
+
+      return axios.post(
+        `/sessions/${params.id}/poll`,
+        { answer: helpfulnessRating },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            "X-Student-Session-Id": tempStudentSessionId,
+          },
+        }
+      );
+    },
+    onSuccess: () => {
+      toast.success("Thank you for your feedback");
+      router.push(APP_ROUTES.STUDENT_JOIN_SESSION);
+    },
+    onError: () => {
+      toast.error("Failed to submit feedback");
+      router.push(APP_ROUTES.STUDENT_JOIN_SESSION); // Redirect anyway
+    },
+  });
+
+  // Fetch initial data and set up WebSocket
+  useEffect(() => {
+    if (!studentSessionId) {
+      toast.error("Please join the session first.");
+      router.push(APP_ROUTES.STUDENT_JOIN_SESSION);
+      return;
+    }
 
     // WebSocket setup
     const newSocket = io(
@@ -175,7 +308,6 @@ export default function StudentSessionScreen() {
     );
     newSocket.emit("joinSession", params.id);
     newSocket.on("studentKicked", ({ studentId }) => {
-      const studentSessionId = sessionStorage.getItem("studentSessionId");
       if (studentId === studentSessionId) {
         setShowKickedDialog(true);
         sessionStorage.removeItem("studentSessionId"); // Clear session
@@ -209,7 +341,6 @@ export default function StudentSessionScreen() {
     });
     newSocket.on("sessionEnded", () => {
       setShowEndedDialog(true);
-      const studentSessionId = sessionStorage.getItem("studentSessionId");
       setTempStudentSessionId(studentSessionId);
       sessionStorage.removeItem("studentSessionId");
       newSocket.disconnect();
@@ -220,7 +351,7 @@ export default function StudentSessionScreen() {
     return () => {
       newSocket.disconnect();
     };
-  }, [params.id, router]);
+  }, [params.id, router, studentSessionId]);
 
   // Session timer and question countdown
   useEffect(() => {
@@ -249,94 +380,23 @@ export default function StudentSessionScreen() {
       .padStart(2, "0")}`;
   };
 
-  const handleSubmitAnswer = async () => {
-    if (!studentAnswer || !currentQuestion) return;
-    const studentSessionId = sessionStorage.getItem("studentSessionId");
-    try {
-      await axios.post(
-        `/sessions/${params.id}/responses`,
-        {
-          questionId: currentQuestion.id,
-          answer: studentAnswer,
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            "X-Student-Session-Id": studentSessionId || "",
-          },
-        }
-      );
-
-      setCurrentQuestion((prev) => (prev ? { ...prev, answered: true } : prev));
-      setStats((prev) => ({ ...prev, answered: prev.answered + 1 }));
-      toast.success("Your answer has been recorded.");
-    } catch (error) {
-      toast.error("Failed to submit answer");
-    }
+  const handleSubmitAnswer = () => {
+    submitAnswerMutation.mutate();
   };
 
-  const handleSubmitQuestion = async () => {
-    if (!newQuestionText.trim()) return;
-    const studentSessionId = sessionStorage.getItem("studentSessionId");
-    try {
-      await axios.post(
-        `/sessions/${params.id}/student-questions`,
-        { text: newQuestionText },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            "X-Student-Session-Id": studentSessionId || "",
-          },
-        }
-      );
-      setNewQuestionText("");
-      toast.success("Your question has been added.");
-    } catch (error) {
-      toast.error("Failed to submit question");
-    }
+  const handleSubmitQuestion = () => {
+    submitQuestionMutation.mutate();
   };
 
-  const handleUpvoteQuestion = async (id: string) => {
-    const studentSessionId = sessionStorage.getItem("studentSessionId");
-    try {
-      await axios.post(
-        `/sessions/${params.id}/student-questions/${id}/upvote`,
-        {},
-        {
-          headers: { "X-Student-Session-Id": studentSessionId || "" },
-        }
-      );
-    } catch (error) {
-      toast.error("Failed to upvote question");
-    }
+  const handleUpvoteQuestion = (id: string) => {
+    upvoteQuestionMutation.mutate(id);
   };
 
-  const handleSubmitPoll = async () => {
-    if (!helpfulnessRating) {
-      toast.error("Please select a rating before submitting.");
-      return;
-    }
-
-    try {
-      await axios.post(
-        `/sessions/${params.id}/poll`,
-        { answer: helpfulnessRating },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            "X-Student-Session-Id": tempStudentSessionId || "",
-          },
-        }
-      );
-      toast.success("Thank you for your feedback");
-      router.push(APP_ROUTES.STUDENT_JOIN_SESSION);
-    } catch (error) {
-      toast.error("Failed to submit feedback");
-      // router.push(APP_ROUTES.STUDENT_JOIN_SESSION); // Redirect anyway
-    }
+  const handleSubmitPoll = () => {
+    submitPollMutation.mutate();
   };
 
-  if (isLoading) {
+  if (isSessionLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="flex flex-col items-center gap-2">
@@ -368,7 +428,9 @@ export default function StudentSessionScreen() {
           <RadioGroup
             value={studentAnswer}
             onValueChange={setStudentAnswer}
-            disabled={currentQuestion.answered}
+            disabled={
+              currentQuestion.answered || submitAnswerMutation.isPending
+            }
             className="space-y-3"
           >
             {currentQuestion.options.map((option, idx) => (
@@ -398,7 +460,9 @@ export default function StudentSessionScreen() {
           <RadioGroup
             value={studentAnswer}
             onValueChange={setStudentAnswer}
-            disabled={currentQuestion.answered}
+            disabled={
+              currentQuestion.answered || submitAnswerMutation.isPending
+            }
             className="space-y-3"
           >
             <div className="flex items-center space-x-3 p-3 rounded-md border bg-card hover:bg-accent/5 transition-colors">
@@ -421,7 +485,9 @@ export default function StudentSessionScreen() {
             value={studentAnswer}
             onChange={(e) => setStudentAnswer(e.target.value)}
             placeholder="Type your answer here..."
-            disabled={currentQuestion.answered}
+            disabled={
+              currentQuestion.answered || submitAnswerMutation.isPending
+            }
             className="min-h-[150px] resize-none"
           />
         );
@@ -433,7 +499,9 @@ export default function StudentSessionScreen() {
               value={studentAnswer}
               onChange={(e) => setStudentAnswer(e.target.value)}
               placeholder="Type your formula answer here..."
-              disabled={currentQuestion.answered}
+              disabled={
+                currentQuestion.answered || submitAnswerMutation.isPending
+              }
               className="min-h-[150px] resize-none font-mono"
             />
           </div>
@@ -575,9 +643,18 @@ export default function StudentSessionScreen() {
                       onClick={handleSubmitAnswer}
                       className="w-full"
                       size="lg"
-                      disabled={!studentAnswer}
+                      disabled={
+                        !studentAnswer || submitAnswerMutation.isPending
+                      }
                     >
-                      Submit Answer
+                      {submitAnswerMutation.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Submitting...
+                        </>
+                      ) : (
+                        "Submit Answer"
+                      )}
                     </Button>
                   </CardFooter>
                 )}
@@ -600,13 +677,23 @@ export default function StudentSessionScreen() {
                     placeholder="Ask a question..."
                     value={newQuestionText}
                     onChange={(e) => setNewQuestionText(e.target.value)}
+                    disabled={submitQuestionMutation.isPending}
                   />
                   <Button
                     onClick={handleSubmitQuestion}
-                    disabled={!newQuestionText.trim()}
+                    disabled={
+                      !newQuestionText.trim() ||
+                      submitQuestionMutation.isPending
+                    }
                   >
-                    <Send className="h-4 w-4 mr-2" />
-                    <span>Ask</span>
+                    {submitQuestionMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4 mr-2" />
+                    )}
+                    <span>
+                      {submitQuestionMutation.isPending ? "Asking..." : "Ask"}
+                    </span>
                   </Button>
                 </div>
 
@@ -636,8 +723,17 @@ export default function StudentSessionScreen() {
                             size="sm"
                             onClick={() => handleUpvoteQuestion(question.id)}
                             className="gap-1"
+                            disabled={
+                              upvoteQuestionMutation.isPending &&
+                              upvoteQuestionMutation.variables === question.id
+                            }
                           >
-                            <ThumbsUp className="h-3.5 w-3.5" />
+                            {upvoteQuestionMutation.isPending &&
+                            upvoteQuestionMutation.variables === question.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <ThumbsUp className="h-3.5 w-3.5" />
+                            )}
                             <span>{question.upvotes}</span>
                           </Button>
 
@@ -809,8 +905,19 @@ export default function StudentSessionScreen() {
             </div>
           </RadioGroup>
           <div className="mt-6">
-            <Button onClick={handleSubmitPoll} className="w-full">
-              Submit Feedback
+            <Button
+              onClick={handleSubmitPoll}
+              className="w-full"
+              disabled={submitPollMutation.isPending}
+            >
+              {submitPollMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                "Submit Feedback"
+              )}
             </Button>
           </div>
         </AlertDialogContent>
