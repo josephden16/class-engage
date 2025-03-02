@@ -121,6 +121,7 @@ function StudentSessionScreen() {
   const [tempStudentSessionId, setTempStudentSessionId] = useState<
     string | null
   >(null);
+  const [sessionJustEnded, setSessionJustEnded] = useState(false);
   const [activeTab, setActiveTab] = useState("question");
 
   const studentSessionId =
@@ -132,7 +133,7 @@ function StudentSessionScreen() {
   const { isLoading: isSessionLoading } = useQuery({
     queryKey: ["sessionData", params.id],
     queryFn: async () => {
-      if (!studentSessionId) {
+      if (!studentSessionId && !sessionJustEnded) {
         toast.error("Please join the session first.");
         router.push(APP_ROUTES.STUDENT_JOIN_SESSION);
         return null;
@@ -141,10 +142,14 @@ function StudentSessionScreen() {
       try {
         const [sessionResponse, statsResponse] = await Promise.all([
           axios.get(`/sessions/${params.id}/student`, {
-            headers: { "X-Student-Session-Id": studentSessionId },
+            headers: {
+              "X-Student-Session-Id": studentSessionId || tempStudentSessionId,
+            },
           }),
           axios.get(`/sessions/${params.id}/student/stats`, {
-            headers: { "X-Student-Session-Id": studentSessionId },
+            headers: {
+              "X-Student-Session-Id": studentSessionId || tempStudentSessionId,
+            },
           }),
         ]);
 
@@ -296,7 +301,7 @@ function StudentSessionScreen() {
 
   // Fetch initial data and set up WebSocket
   useEffect(() => {
-    if (!studentSessionId) {
+    if (!studentSessionId && !sessionJustEnded) {
       toast.error("Please join the session first.");
       router.push(APP_ROUTES.STUDENT_JOIN_SESSION);
       return;
@@ -340,6 +345,7 @@ function StudentSessionScreen() {
       );
     });
     newSocket.on("sessionEnded", () => {
+      setSessionJustEnded(true);
       setShowEndedDialog(true);
       setTempStudentSessionId(studentSessionId);
       sessionStorage.removeItem("studentSessionId");
