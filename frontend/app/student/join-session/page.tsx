@@ -1,7 +1,7 @@
 "use client";
 
 import { useForm } from "react-hook-form";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +26,9 @@ export default function JoinSessionInvitation() {
     handleSubmit,
     formState: { errors },
   } = useForm<FormValues>();
+
+  const searchParams = useSearchParams();
+  const invitationCode = searchParams.get("invitationCode");
 
   const onSubmit = async (data: FormValues) => {
     setIsLoading(true);
@@ -61,6 +64,7 @@ export default function JoinSessionInvitation() {
               <Label htmlFor="invitationCode">Invitation Code</Label>
               <Input
                 id="invitationCode"
+                defaultValue={invitationCode as string}
                 placeholder="Enter the invitation code"
                 {...register("invitationCode", {
                   required: "Invitation code is required.",

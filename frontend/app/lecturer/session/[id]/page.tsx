@@ -314,7 +314,12 @@ export default function LiveSessionScreen() {
   };
 
   const handleShareSession = () => {
-    navigator.clipboard.writeText(sessionState.invitationCode);
+    const fullUrl =
+      window.location.protocol +
+      "//" +
+      window.location.host +
+      `/student/join-session?invitationCode=${sessionState.invitationCode}`;
+    navigator.clipboard.writeText(fullUrl);
     toast.success("Session code copied to clipboard");
   };
 
