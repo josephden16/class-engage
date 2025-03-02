@@ -256,7 +256,7 @@ export default function LiveSessionScreen() {
     try {
       await axios.post(`/sessions/${params.id}/end`);
       toast.success("Session ended");
-      window.location.href = APP_ROUTES.DASHBOARD;
+      window.location.href = `${APP_ROUTES.LECTURER_POST_SESSION_SUMMARY}/${params.id}`;
     } catch (error) {
       toast.error("Failed to end session");
     }
@@ -333,14 +333,14 @@ export default function LiveSessionScreen() {
       window.location.protocol +
       "//" +
       window.location.host +
-      `/student/join-session?invitationCode=${sessionState.invitationCode}`;
+      `${APP_ROUTES.STUDENT_JOIN_SESSION}?invitationCode=${sessionState.invitationCode}`;
     navigator.clipboard.writeText(fullUrl);
-    toast.success("Session invitation copied to clipboard");
+    toast.success("Session invitation link copied");
   };
 
   const handleCopyInviteCode = () => {
     navigator.clipboard.writeText(sessionState.invitationCode);
-    toast.success("Invitation code copied to clipboard");
+    toast.success("Session invitation code copied");
   };
 
   const handleBackToDashboard = () => {

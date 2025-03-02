@@ -34,26 +34,13 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-
-    // If error is 401 and we haven't already tried to refresh
     if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      window.location.href = APP_ROUTES.LOGIN;
-
-      // try {
-      //   const session = await getSession();
-
-      //   if (session?.accessToken) {
-      //     originalRequest.headers.Authorization = `Bearer ${session.accessToken}`;
-      //     return axios(originalRequest);
-      //   }
-      // } catch (refreshError) {
-      //   console.error("Token refresh failed:", refreshError);
-      //   window.location.href = "/login";
-      //   return Promise.reject(refreshError);
-      // }
+      if (typeof window === "undefined") {
+        return Promise.reject(error);
+      } else {
+        window.location.href = APP_ROUTES.LOGIN;
+      }
     }
-
     return Promise.reject(error);
   }
 );
