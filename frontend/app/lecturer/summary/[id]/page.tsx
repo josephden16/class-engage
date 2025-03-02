@@ -16,10 +16,21 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
-import { Download, Mail } from "lucide-react";
+import {
+  Download,
+  ChevronLeft,
+  Home,
+  BarChart2,
+  PieChartIcon,
+  MessageCircle,
+  Menu,
+} from "lucide-react";
 import jsPDF from "jspdf";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
+import Link from "next/link";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { APP_ROUTES } from "@/lib/routes";
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042"];
 
@@ -28,6 +39,7 @@ export default function PostSessionAnalytics() {
   const router = useRouter();
   const [sessionData, setSessionData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeSection, setActiveSection] = useState("overview");
 
   useEffect(() => {
     const fetchAnalytics = async () => {
@@ -49,7 +61,7 @@ export default function PostSessionAnalytics() {
     };
 
     fetchAnalytics();
-  }, [params.id, router]);
+  }, [params.id]);
 
   const handleDownloadReport = () => {
     if (!sessionData) return;
@@ -91,6 +103,14 @@ export default function PostSessionAnalytics() {
     toast.success("Report downloaded successfully");
   };
 
+  const scrollToSection = (sectionId: string) => {
+    const element = document.getElementById(sectionId);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth" });
+      setActiveSection(sectionId);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -103,130 +123,248 @@ export default function PostSessionAnalytics() {
     return null;
   }
 
+  const navigationItems = [
+    {
+      id: "overview",
+      label: "Overview",
+      icon: <Home className="h-4 w-4 mr-2" />,
+    },
+    {
+      id: "response-rates",
+      label: "Response Rates",
+      icon: <BarChart2 className="h-4 w-4 mr-2" />,
+    },
+    {
+      id: "poll-results",
+      label: "Poll Results",
+      icon: <PieChartIcon className="h-4 w-4 mr-2" />,
+    },
+    {
+      id: "top-questions",
+      label: "Top Questions",
+      icon: <MessageCircle className="h-4 w-4 mr-2" />,
+    },
+  ];
+
   return (
     <div className="flex flex-col min-h-screen bg-background text-text">
       <header className="sticky top-0 z-10 bg-primary text-primary-foreground p-4 shadow-md">
-        <div className="container mx-auto">
-          <h1 className="text-2xl font-bold">Post-Session Analytics</h1>
+        <div className="container mx-auto flex justify-between items-center">
+          <div className="flex items-center space-x-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => router.back()}
+              className="hover:bg-white/90"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold">Post-Session Analytics</h1>
+              <div className="text-sm breadcrumbs hidden md:block">
+                <ul className="flex space-x-2">
+                  <li>
+                    <Link
+                      href={APP_ROUTES.DASHBOARD}
+                      className="hover:underline"
+                    >
+                      Dashboard
+                    </Link>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="md:hidden">
+                <Menu className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right">
+              <div className="py-4">
+                <h2 className="text-lg font-semibold mb-4">Navigation</h2>
+                <nav>
+                  <ul className="space-y-2">
+                    {navigationItems.map((item) => (
+                      <li key={item.id}>
+                        <Button
+                          variant="ghost"
+                          className={`w-full justify-start ${
+                            activeSection === item.id ? "bg-muted" : ""
+                          }`}
+                          onClick={() => {
+                            scrollToSection(item.id);
+                          }}
+                        >
+                          {item.icon}
+                          {item.label}
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                </nav>
+              </div>
+            </SheetContent>
+          </Sheet>
         </div>
       </header>
 
-      <main className="flex-grow container mx-auto p-4 space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Session Overview</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <h2 className="text-xl font-semibold">{sessionData.title}</h2>
-                <p>Date: {sessionData.date}</p>
-                <p>Duration: {sessionData.duration}</p>
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{sessionData.participants}</p>
-                <p>Participants</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Response Rates per Question</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart
-                  data={sessionData.questions.map((q: any, i: number) => ({
-                    ...q,
-                    id: `Q${i + 1}`,
-                  }))}
-                >
-                  <XAxis dataKey="id" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar
-                    dataKey="responseRate"
-                    fill="#8884d8"
-                    name="Response Rate (%)"
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Poll Results: Session Helpfulness</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={sessionData.pollResults}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) =>
-                      `${name} ${(percent * 100).toFixed(0)}%`
-                    }
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
+      <div className="flex flex-1">
+        <aside className="hidden md:block w-64 bg-muted/30 p-4 border-r">
+          <nav className="sticky top-24">
+            <ul className="space-y-2">
+              {navigationItems.map((item) => (
+                <li key={item.id}>
+                  <Button
+                    variant="ghost"
+                    className={`w-full justify-start ${
+                      activeSection === item.id ? "bg-muted" : ""
+                    }`}
+                    onClick={() => scrollToSection(item.id)}
                   >
-                    {sessionData.pollResults.map(
-                      (entry: any, index: number) => (
-                        <Cell
-                          key={`cell-${index}`}
-                          fill={COLORS[index % COLORS.length]}
-                        />
-                      )
-                    )}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </div>
+                    {item.icon}
+                    {item.label}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        </aside>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Top Student Questions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-[300px]">
-              <ul className="space-y-4">
-                {sessionData.topQuestions.map((question: any) => (
-                  <li key={question.id} className="border-b pb-4">
-                    <p className="font-semibold">{question.text}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Upvotes: {question.upvotes}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            </ScrollArea>
-          </CardContent>
-        </Card>
+        <main className="flex-grow p-4 space-y-6 overflow-y-auto">
+          <div className="container mx-auto max-w-4xl space-y-8">
+            <section id="overview" className="scroll-mt-20">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Session Overview</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <h2 className="text-xl font-semibold">
+                        {sessionData.title}
+                      </h2>
+                      <p>Date: {sessionData.date}</p>
+                      <p>Duration: {sessionData.duration}</p>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">
+                        {sessionData.participants}
+                      </p>
+                      <p>Participants</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
 
-        <div className="flex flex-col sm:flex-row justify-center gap-4">
-          <Button onClick={handleDownloadReport} className="flex items-center">
-            <Download className="mr-2 h-4 w-4" /> Download Report
-          </Button>
-          {/* <Button
-            onClick={handleEmailSummary}
-            variant="outline"
-            className="flex items-center"
-          >
-            <Mail className="mr-2 h-4 w-4" /> Email Summary
-          </Button> */}
-        </div>
-      </main>
+            <section id="response-rates" className="scroll-mt-20">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Response Rates per Question</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart
+                      data={sessionData.questions.map((q: any, i: number) => ({
+                        ...q,
+                        id: `Q${i + 1}`,
+                      }))}
+                    >
+                      <XAxis dataKey="id" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      <Bar
+                        dataKey="responseRate"
+                        fill="#8884d8"
+                        name="Response Rate (%)"
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </section>
+
+            <section id="poll-results" className="scroll-mt-20">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Poll Results: Session Helpfulness</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={sessionData.pollResults}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) =>
+                          `${name} ${(percent * 100).toFixed(0)}%`
+                        }
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {sessionData.pollResults.map(
+                          (entry: any, index: number) => (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={COLORS[index % COLORS.length]}
+                            />
+                          )
+                        )}
+                      </Pie>
+                      <Tooltip />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </section>
+
+            <section id="top-questions" className="scroll-mt-20">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Top Student Questions</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-[300px]">
+                    <ul className="space-y-4">
+                      {sessionData.topQuestions.map((question: any) => (
+                        <li key={question.id} className="border-b pb-4">
+                          <p className="font-semibold">{question.text}</p>
+                          <p className="text-sm text-muted-foreground">
+                            Upvotes: {question.upvotes}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            </section>
+
+            <div className="flex flex-col sm:flex-row justify-center gap-4 py-4">
+              <Button
+                onClick={handleDownloadReport}
+                className="flex items-center"
+              >
+                <Download className="mr-2 h-4 w-4" /> Download Report
+              </Button>
+              {/* <Button
+                onClick={handleEmailSummary}
+                variant="outline"
+                className="flex items-center"
+              >
+                <Mail className="mr-2 h-4 w-4" /> Email Summary
+              </Button> */}
+            </div>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
