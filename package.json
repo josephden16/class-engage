@@ -1,0 +1,30 @@
+{
+  "name": "class-engage",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "frontend:dev": "cd frontend && npm run dev",
+    "frontend:build": "cd frontend && npm run build",
+    "backend:dev": "cd backend && npm run start:dev",
+    "backend:build": "cd backend && npm run build",
+    "frontend:install": "cd frontend && pnpm install",
+    "backend:services": "cd backend && npm run services:dev:start",
+    "backend:install": "cd backend && pnpm install",
+    "dev": "concurrently \"npm run backend:dev\" \"npm run frontend:dev\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/josephden16/class-engage.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/josephden16/class-engage/issues"
+  },
+  "homepage": "https://github.com/josephden16/class-engage#readme",
+  "dependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
+
