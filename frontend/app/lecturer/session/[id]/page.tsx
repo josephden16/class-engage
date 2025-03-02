@@ -44,6 +44,14 @@ import {
   QueryClient,
   QueryClientProvider,
 } from "@tanstack/react-query";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type Question = {
   results: any;
@@ -114,6 +122,7 @@ function LiveSessionScreen() {
     []
   );
   const [activeTab, setActiveTab] = useState("questions");
+  const [showEndConfirmation, setShowEndConfirmation] = useState(false);
 
   const currentQuestion = questions[currentQuestionIndex];
 
@@ -372,6 +381,11 @@ function LiveSessionScreen() {
   };
 
   const handleEndSession = () => {
+    setShowEndConfirmation(true);
+  };
+
+  const confirmEndSession = () => {
+    setShowEndConfirmation(false);
     endSessionMutation.mutate();
   };
 
@@ -977,6 +991,40 @@ function LiveSessionScreen() {
           </TabsContent>
         </Tabs>
       </main>
+      {/* End Session Confirmation Dialog */}
+      <Dialog open={showEndConfirmation} onOpenChange={setShowEndConfirmation}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>End Session</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to end this session? This action cannot be
+              undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex flex-col sm:flex-row sm:justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowEndConfirmation(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmEndSession}
+              disabled={endSessionMutation.isPending}
+            >
+              {endSessionMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Ending...
+                </>
+              ) : (
+                "End Session"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
